@@ -67,14 +67,14 @@ To install it from there just type
 
 ```bash
 ur \
-  gpg-signature-verify
+  evm-gpg-key-address-check
 ```
 
 A censorable HTTP Github mirror of the recipe published there,
 containing a full list of the software dependencies needed to run the
 tools is hosted on
 [gpg-signature-verify-ur](
-  https://github.com/themartiancompany/gpg-signature-verify-ur).
+  https://github.com/themartiancompany/evm-gpg-key-address-check-ur).
 
 A censorable binary package has been published on the
 [Fallback User Repository](
@@ -83,7 +83,7 @@ and it can be installed with
 
 ```bash
 fur \
-  gpg-signature-verify
+  evm-gpg-key-address-check
 ```
 
 Be aware the mirrors could go offline any time as Github and more
