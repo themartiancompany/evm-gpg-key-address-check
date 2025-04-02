@@ -1,0 +1,227 @@
+#!/usr/bin/env bash
+
+# SPDX-License-Identifier: AGPL-3.0
+
+#    ----------------------------------------------------------------------
+#    Copyright © 2024, 2025  Pellegrino Prevete
+#
+#    All rights reserved
+#    ----------------------------------------------------------------------
+#
+#    This program is free software: you can redistribute it and/or modify
+#    it under the terms of the GNU Affero General Public License as published by
+#    the Free Software Foundation, either version 3 of the License, or
+#    (at your option) any later version.
+#
+#    This program is distributed in the hope that it will be useful,
+#    but WITHOUT ANY WARRANTY; without even the implied warranty of
+#    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#    GNU Affero General Public License for more details.
+#
+#    You should have received a copy of the GNU Affero General Public License
+#    along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
+_bin="$( \
+  dirname \
+    "$( \
+      command \
+        -v \
+	  "env")")"
+_lib="$( \
+  realpath \
+    "${_bin}/../lib")"
+_crash_bash="${_lib}/libcrash-bash/crash-bash"
+_sourced \
+  "${_crash_bash}" 2>/dev/null || \
+  source \
+    "${_crash_bash}"
+
+# shellcheck disable=SC2034
+_global_variables() {
+  check_date=""
+  gnupg_home=""
+  key_file=""
+  evm_address=""
+  color=""
+  quiet=""
+}
+
+# Check all required programs
+# are available
+_requirements() {
+  _check_cmd \
+    'gpg-key-info'
+}
+
+_evm_gpg_key_address_check() {
+  local \
+    _gnupg_home="${1}" \
+    _key="${2}" \
+    _address="${3}" \
+    _domain \
+    _email \
+    _fingerprint \
+    _user_id \
+    _msg=()
+  _email="$( \
+    gpg-key-info \
+      -o \
+        "email" \
+      "${_key}")"
+  _domain="${_email#*@}"
+  if [[ "${_address}" != "${_domain}" ]]; then
+    _msg=(
+      "The target address '${_address}'"
+      "does not correspond to domain '${_domain}'"
+      "of identifier '${_email}'"
+      "for key '${_key}'."
+    )
+    _msg_error \
+      "${_msg[*]}" \
+      1
+  elif [[ "${_address}" == "${_domain}" ]]; then
+    _fingerprint="$( \
+      gpg-key-info \
+        -o \
+          "fingerprint" \
+        "${_key}")"
+    _msg=(
+      "Key '${_key}' identifying"
+      "valid user id '${_email}'"
+      "with fingerprint '${_fingerprint}'."
+    )
+    _msg_info \
+      "${_msg[*]}"
+    echo \
+      "${_email}"
+  fi
+}
+
+# Set defaults and, if present, overrides
+# command line option parameters
+_set_overrides() {
+  if [[ -v override_color ]]; then
+    color="${override_color}"
+  elif [[ -z "${color}" ]]; then
+    color="n"
+  fi
+  if [[ -v override_quiet ]]; then
+    quiet="${override_quiet}"
+  elif [[ -z "${quiet}" ]]; then
+    quiet="y"
+  fi
+  _set_override \
+    "check" \
+    "date" \
+    "$(_get_date_human)"
+  _set_override \
+    "gnupg" \
+    "home" \
+    "${HOME}/.config/${app_name}/gnupg"
+}
+
+# Show help usage, with an exit status.
+# $1: exit status number.
+_usage() {
+  local \
+    _exit="${1}" \
+    _usage_text
+  IFS='' \
+    read \
+      -r \
+      -d '' \
+      _usage_text << \
+        ENDUSAGETEXT || true
+
+Verify a file is cryptographically signed with one of the public keys associated to the address.
+
+Usage:
+  ${app_name}
+    [options]
+    <target_file>
+    <evm_address>
+
+  options:
+     -H <gnupg_home>        GnuPG home (for when the signature type
+			    is 'fingeprint').
+                            Default: ${gnupg_home}
+
+     -c                     Colors.
+     -h                     This message.
+     -v                     Enable verbose output
+ENDUSAGETEXT
+  _printf \
+    '%s\n' \
+    "${_usage_text}"
+  exit \
+    "${_exit}"
+}
+
+# Shows configuration options.
+_show_config() {
+  _msg_info "${app_name} configuration"
+  _msg_info "                     Check date:   ${check_date}"
+  _msg_info "           GnuPG home directory:   ${gnupg_home}"
+  _msg_info "                       Key file:   ${key_file}"
+  _msg_info "                    EVM address:   ${evm_address}"
+}
+
+_globals
+_global_variables
+_requirements
+# shellcheck disable=SC2004
+# shellcheck disable=SC2034
+while \
+  getopts \
+    'H:cvh?' \
+    arg; do
+  case \
+    "${arg}" in
+    H) \
+      override_gnupg_home="${OPTARG}" ;;
+    c) \
+      override_color="y" ;;
+    v) \
+      override_quiet="n" ;;
+    h|?) _set_overrides && \
+	 _usage \
+           0 ;;
+    *)
+    _msg_error \
+      "Invalid argument '${arg}'." \
+      0 && \
+    _set_overrides && \
+    _usage \
+      1
+    ;;
+  esac
+done
+shift \
+  $(( \
+    OPTIND - 1 \
+  ))
+if (( $# < 1 )); then
+  _msg_error \
+    "No key file specified." \
+    0
+  _usage \
+    1
+fi
+if (( $# < 2 )); then
+  _msg_error \
+    "No EVM address specified." \
+    0
+  _usage \
+    1
+fi
+key_file="${1}"
+evm_address="${2}"
+_set_overrides
+_show_config
+app_opts=(
+  "${gnupg_home}"
+  "${key_file}"
+  "${evm_address}"
+)
+_evm_gpg_key_address_check \
+  "${app_opts[@]}"
